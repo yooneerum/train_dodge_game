@@ -13,12 +13,12 @@ const COLOR_KEY_MAP   = {
   [0xffff00]:'12',[0xff00ff]:'13',[0x00ffff]:'23'
 };
 const STAGE_COLORS_POOL = [
-  [0xff0000],                                            // 빨강
-  [0xff0000, 0x00ff00],                                 // 빨강 초록
-  [0xff0000, 0x00ff00, 0x0000ff],                       // 빨강 초록 파랑
-  [0xff0000, 0xffff00, 0x00ff00, 0x0000ff],             // 빨강 노랑 초록 파랑
-  [0xff0000, 0xffff00, 0x00ff00, 0x0000ff, 0x00ffff],   // + 시안
-  [0xff0000, 0xffff00, 0x00ff00, 0x0000ff, 0x00ffff, 0xff00ff], // + 마젠타
+  [0xff0000],
+  [0xff0000, 0x00ff00],
+  [0xff0000, 0x00ff00, 0x0000ff],
+  [0xff0000, 0x00ff00, 0x0000ff, 0xffff00],
+  [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff],
+  [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff],
 ];
 const WHITE = 0xffffff;
 const BLACK = 0x000000;
@@ -380,14 +380,16 @@ function advanceStage() {
     startBgm();
   }
 
+  //  장애물 시스템_스테이지 7부터 기차 등장
   if (currentStage === 7) {
     train.trainGroup.visible = true;
     train.trainGroup.position.set(-5, 0.95, -5);
     trainState.points = randomWaypoints();
     trainState.seg    = 0;
+    spawnItem();
   }
   if (currentStage >= 7) {
-    trainState.speed = 0.05 + (currentStage - 7) * 0.04;
+    trainState.speed = 0.08;
   }
 }
 
@@ -576,9 +578,140 @@ function updateObstacles(dt) {
   }
 }
 
+
 // ─────────────────────────────────────────────
-//  충돌 판정
+//  무적 아이템 시스템
 // ─────────────────────────────────────────────
+const ITEM_COLORS = [0xff0000, 0xffff00, 0x00ff00, 0x00ffff, 0x0000ff, 0xff00ff];
+const ITEM_SPAWN_INTERVAL = 15000; // 15초마다
+const ITEM_TRAIL_DIST     = 4;   // 공 지름(1.0) × 4
+const INVINCIBLE_DURATION = 5000;  // 무적 5초
+const INVINCIBLE_BLINK    = 2000;  // 해제 전 깜빡임 2초
+ 
+let itemMesh       = null;   // 현재 활성 아이템 (null = 없음)
+let itemSpawnTimer = 0;
+let invincibleTimer = 0;     // 무적 남은 시간 (0 = 비활성)
+let invincibleBlinkTimer = 0; // 해제 직전 깜빡임 타이머
+ 
+const RAINBOW_COLORS = [0xff0000,0xff7700,0xffff00,0x00ff00,0x00ffff,0x0000ff,0xff00ff];
+let rainbowTick = 0;
+ 
+function makeItemMesh() {
+  // 노란 별 모양 — 2D 별 윤곽을 ExtrudeGeometry로 두께 부여
+  const starShape = new THREE.Shape();
+  const spikes = 5;
+  const outerR = 0.7;
+  const innerR = 0.3;
+  for (let i = 0; i < spikes * 2; i++) {
+    const r     = i % 2 === 0 ? outerR : innerR;
+    const angle = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+    const x     = Math.cos(angle) * r;
+    const y     = Math.sin(angle) * r;
+    if (i === 0) starShape.moveTo(x, y);
+    else         starShape.lineTo(x, y);
+  }
+  starShape.closePath();
+ 
+  const extrudeSettings = { depth: 0.22, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2 };
+  const geo = new THREE.ExtrudeGeometry(starShape, extrudeSettings);
+  const mat = new THREE.MeshPhongMaterial({ color: 0xffdd00, emissive: 0xffaa00, emissiveIntensity: 0.5, shininess: 120 });
+  const mesh = new THREE.Mesh(geo, mat);
+  // ExtrudeGeometry는 XY 평면으로 생성되므로 눕혀서 지면과 평행하게
+  mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+ 
+function spawnItem() {
+  if (itemMesh) return; // 이미 있으면 스킵
+  itemMesh = makeItemMesh();
+  scene.add(itemMesh);
+}
+ 
+function updateItem(dt) {
+  // 스폰 타이머 (기차 등장 이후에만 카운트)
+  if (train.trainGroup.visible && !itemMesh) {
+    itemSpawnTimer += dt;
+    if (itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
+      itemSpawnTimer = 0;
+      spawnItem();
+    }
+  }
+ 
+  if (!itemMesh) return;
+ 
+  // 기차 뒤쪽 위치 계산
+  // trainGroup.rotation.y 기준으로 기차가 바라보는 방향의 반대 = 기차 뒤
+  const trainPos = train.trainGroup.position;
+  const trainRot = train.trainGroup.rotation.y;
+  // Three.js lookAt 결과: 기차 앞 방향 = -Z 로컬 → 뒤 = +Z 로컬 → 월드 변환
+  const behindX = trainPos.x + Math.sin(trainRot) * ITEM_TRAIL_DIST;
+  const behindZ = trainPos.z + Math.cos(trainRot) * ITEM_TRAIL_DIST;
+  itemMesh.position.set(behindX, 0.8, behindZ);
+ 
+  // 회전 애니메이션 — Y축 스핀 + 약간 기울어짐으로 입체감
+  itemMesh.rotation.y += 0.06;
+ 
+  // 공과 충돌 → 무적 발동
+  if (itemMesh.position.distanceTo(sphere.position) < 1.8) {
+    scene.remove(itemMesh);
+    itemMesh = null;
+    itemSpawnTimer = 0;
+    activateInvincible();
+  }
+}
+ 
+function activateInvincible() {
+  invincibleTimer      = INVINCIBLE_DURATION;
+  invincibleBlinkTimer = 0;
+}
+ 
+function updateInvincible(dt) {
+  if (invincibleTimer <= 0) return;
+ 
+  invincibleTimer -= dt;
+  rainbowTick     += dt;
+ 
+  // 해제 1초 전 = 깜빡임 구간
+  const blinkPhase = invincibleTimer < INVINCIBLE_BLINK;
+ 
+  if (invincibleTimer <= 0) {
+    // 완전 해제
+    invincibleTimer = 0;
+    updateSphereColor(); // 원래 색으로 복구
+    return;
+  }
+ 
+  if (blinkPhase) {
+    // 0.1초 주기로 무지개↔기본색 토글
+    const blink = Math.floor(rainbowTick / 100) % 2 === 0;
+    if (blink) {
+      applyRainbowColor();
+    } else {
+      const defaultColor = bgIsWhite ? BLACK : WHITE;
+      sphereMat.color.setHex(defaultColor);
+    }
+  } else {
+    applyRainbowColor();
+  }
+}
+ 
+function applyRainbowColor() {
+  const idx = Math.floor(rainbowTick / 120) % RAINBOW_COLORS.length;
+  sphereMat.color.setHex(RAINBOW_COLORS[idx]);
+}
+ 
+function isInvincible() {
+  return invincibleTimer > 0;
+}
+ 
+function resetItem() {
+  if (itemMesh) { scene.remove(itemMesh); itemMesh = null; }
+  itemSpawnTimer    = 0;
+  invincibleTimer   = 0;
+  invincibleBlinkTimer = 0;
+  rainbowTick       = 0;
+}
+ 
 function pointSegDist(px, pz, ax, az, bx, bz) {
   const abx = bx-ax, abz = bz-az;
   const apx = px-ax, apz = pz-az;
@@ -586,24 +719,26 @@ function pointSegDist(px, pz, ax, az, bx, bz) {
   const cx = ax+abx*t, cz = az+abz*t;
   return Math.sqrt((px-cx)**2 + (pz-cz)**2);
 }
-
+ 
 function checkCollisions() {
+  if (isInvincible()) return; // 무적 중 모든 충돌 무시
+ 
   if (train.trainGroup.visible &&
       train.trainGroup.position.distanceTo(sphere.position) < 1.8) {
     triggerGameOver(); return;
   }
-
+ 
   const sp = sphere.position;
   const sphereKey = getSphereColorKey();
-
+ 
   for (const o of obstacles) {
     if (o.phase !== 'active') continue;
     const obstKey = COLOR_KEY_MAP[o.color] ?? '';
     if (sphereKey === obstKey) continue;
-
+ 
     if (o.subtype === 'sphere') {
       if (sp.distanceTo(o.mesh.position) < 1.5) { triggerGameOver(); return; }
-
+ 
     } else if (o.subtype === 'staticX' || o.subtype === 'staticZ') {
       for (const seg of o.mesh.children) {
         const s = seg.userData.start, e = seg.userData.end;
@@ -662,9 +797,7 @@ function clearObstacles() {
 
 function restartGame() {
   clearObstacles();
-  if (gameOverSound.isPlaying) {
-    gameOverSound.stop();
-  }
+  resetItem();
   stopBgm();  // 매 시작마다 BGM 리셋 → 스테이지 2에서 다시 재생
   sphere.position.set(0, 0.5, 0);
 
@@ -725,6 +858,8 @@ function animate() {
     stageTimer += dt;
     if (stageTimer >= STAGE_DURATION) advanceStage();
     moveTrain(trainState);
+    updateItem(dt);
+    updateInvincible(dt);
     updateObstacles(dt);
     checkCollisions();
     updateTimerUI();
