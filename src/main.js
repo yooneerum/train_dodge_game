@@ -13,12 +13,12 @@ const COLOR_KEY_MAP   = {
   [0xffff00]:'12',[0xff00ff]:'13',[0x00ffff]:'23'
 };
 const STAGE_COLORS_POOL = [
-  [0xff0000],
-  [0xff0000, 0x00ff00],
-  [0xff0000, 0x00ff00, 0x0000ff],
-  [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff],
-  [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff],
-  [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff],
+  [0xff0000],                                            // 빨강
+  [0xff0000, 0x00ff00],                                 // 빨강 초록
+  [0xff0000, 0x00ff00, 0x0000ff],                       // 빨강 초록 파랑
+  [0xff0000, 0xffff00, 0x00ff00, 0x0000ff],             // 빨강 노랑 초록 파랑
+  [0xff0000, 0xffff00, 0x00ff00, 0x0000ff, 0x00ffff],   // + 시안
+  [0xff0000, 0xffff00, 0x00ff00, 0x0000ff, 0x00ffff, 0xff00ff], // + 마젠타
 ];
 const WHITE = 0xffffff;
 const BLACK = 0x000000;
@@ -373,21 +373,21 @@ function advanceStage() {
   applyStageTheme(currentStage);
   updateSphereColor();
 
-  showStageBanner(currentStage === 5 ? `STAGE ${currentStage} 🚂` : `STAGE ${currentStage}`);
+  showStageBanner(currentStage === 7 ? `STAGE ${currentStage} 🚂` : `STAGE ${currentStage}`);
 
   // 스테이지 2에서 BGM 시작
   if (currentStage === 2) {
     startBgm();
   }
 
-  if (currentStage === 5) {
+  if (currentStage === 7) {
     train.trainGroup.visible = true;
     train.trainGroup.position.set(-5, 0.95, -5);
     trainState.points = randomWaypoints();
     trainState.seg    = 0;
   }
-  if (currentStage >= 5) {
-    trainState.speed = 0.05 + (currentStage - 5) * 0.04;
+  if (currentStage >= 7) {
+    trainState.speed = 0.05 + (currentStage - 7) * 0.04;
   }
 }
 
