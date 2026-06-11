@@ -6,15 +6,13 @@ import gameoverMusic from './assets/gameover.mp3';
 //  상수
 // ─────────────────────────────────────────────
 const MAP_HALF        = 14;
-const STAGE_DURATION  = 18000;
+const STAGE_DURATION  = 15000;
 const WARN_DURATION   = 1000;
 const COLOR_KEY_MAP   = {
   [0xff0000]:'1', [0x00ff00]:'2', [0x0000ff]:'3',
   [0xffff00]:'12',[0xff00ff]:'13',[0x00ffff]:'23'
 };
 const STAGE_COLORS_POOL = [
-  [0xff0000],
-  [0xff0000, 0x00ff00],
   [0xff0000, 0x00ff00, 0x0000ff],
   [0xff0000, 0x00ff00, 0x0000ff, 0xffff00],
   [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff],
@@ -373,7 +371,7 @@ function advanceStage() {
   applyStageTheme(currentStage);
   updateSphereColor();
 
-  showStageBanner(currentStage === 7 ? `STAGE ${currentStage} 🚂` : `STAGE ${currentStage}`);
+  showStageBanner(currentStage === 5 ? `STAGE ${currentStage} 🚂` : `STAGE ${currentStage}`);
 
   // 스테이지 2에서 BGM 시작
   if (currentStage === 2) {
@@ -381,14 +379,14 @@ function advanceStage() {
   }
 
   //  장애물 시스템_스테이지 7부터 기차 등장
-  if (currentStage === 7) {
+  if (currentStage === 5) {
     train.trainGroup.visible = true;
     train.trainGroup.position.set(-5, 0.95, -5);
     trainState.points = randomWaypoints();
     trainState.seg    = 0;
     spawnItem();
   }
-  if (currentStage >= 7) {
+  if (currentStage >= 5) {
     trainState.speed = 0.08;
   }
 }
